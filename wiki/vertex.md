@@ -23,3 +23,12 @@
 2. 检查API密钥文件是否正确放置
 3. 验证项目是否已启用Vertex AI API
 4. 检查Google Cloud Console中的配额限制
+
+
+## 4. RAG 配置
+
+- 将环境变量 `ENABLE_VERTEX_RAG` 设为 `true` 后，可在 `/vertex` 接口使用带有 `-rag` 后缀的模型，自动附带检索工具。
+- `VERTEX_RAG_SOURCE` 支持 `vertex_rag_store` 与 `vertex_ai_search`，默认使用 Vertex RAG Store。
+- RAG Store 模式需要提供 `VERTEX_RAG_CORPUS`（可选 `VERTEX_RAG_FILE_IDS`），并可通过 `VERTEX_RAG_TOP_K`、`VERTEX_RAG_SIMILARITY_TOP_K`、`VERTEX_RAG_VECTOR_DISTANCE_THRESHOLD` 调整召回策略。
+- 若使用 Vertex AI Search，请配置 `VERTEX_RAG_DATASTORE` 或 `VERTEX_RAG_ENGINE`，并可选 `VERTEX_RAG_FILTER`、`VERTEX_RAG_MAX_RESULTS`。
+- 可选地使用 `VERTEX_RAG_RANKING_MODE` 与 `VERTEX_RAG_RANKING_MODEL` 启用 rerank 功能。

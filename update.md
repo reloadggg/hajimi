@@ -1,4 +1,8 @@
 # 更新日志
+
+* v0.3.x
+   * 新增 Gemini / Vertex RAG 支持，使用 `-rag` 模型后缀自动注入检索工具
+   * 新增 RAG 环境变量（ENABLE_GEMINI_RAG、VERTEX_RAG_* 等）便于配置数据源
 * v0.3.5
    * 修改vertex模式拉取模型链接，为新模型做准备
 * v0.3.4

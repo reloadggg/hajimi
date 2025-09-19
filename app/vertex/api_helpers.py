@@ -2,7 +2,7 @@ import json
 import time
 import math
 import asyncio
-from typing import List, Dict, Any, Callable, Union, Optional
+from typing import List, Dict, Any, Callable, Union, Optional, Tuple
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from google.genai import types
@@ -67,6 +67,94 @@ def create_generation_config(request: OpenAIRequest) -> Dict[str, Any]:
         types.SafetySetting(category="HARM_CATEGORY_CIVIC_INTEGRITY", threshold="OFF"),
     ]
     return config
+
+
+
+def build_vertex_rag_tool() -> Tuple[Optional[types.Tool], Optional[types.ToolConfig]]:
+    """构造 Vertex 环境 RAG 所需的 Tool."""
+    config = getattr(settings, "vertex_rag", {})
+    if not config.get("enabled"):
+        return None, None
+
+    source = (config.get("source") or "vertex_rag_store").lower()
+
+    if source == "vertex_rag_store":
+        corpus = config.get("corpus")
+        if not corpus:
+            raise ValueError("Vertex RAG 需要设置 VERTEX_RAG_CORPUS")
+
+        resource_kwargs: Dict[str, Any] = {"rag_corpus": corpus}
+        if config.get("file_ids"):
+            resource_kwargs["rag_file_ids"] = config["file_ids"]
+        rag_resource = types.VertexRagStoreRagResource(**resource_kwargs)
+
+        store_kwargs: Dict[str, Any] = {"rag_resources": [rag_resource]}
+        if config.get("similarity_top_k") is not None:
+            store_kwargs["similarity_top_k"] = config["similarity_top_k"]
+        if config.get("vector_distance_threshold") is not None:
+            store_kwargs["vector_distance_threshold"] = config["vector_distance_threshold"]
+
+        rag_config_kwargs: Dict[str, Any] = {}
+        if config.get("top_k") is not None:
+            rag_config_kwargs["top_k"] = config["top_k"]
+
+        ranking_mode = (config.get("ranking_mode") or "").lower()
+        ranking_model = config.get("ranking_model")
+        if ranking_mode and ranking_model:
+            if ranking_mode == "llm":
+                rag_config_kwargs["ranking"] = types.RagRetrievalConfigRanking(
+                    llm_ranker=types.RagRetrievalConfigRankingLlmRanker(
+                        model_name=ranking_model
+                    )
+                )
+            elif ranking_mode == "rank_service":
+                rag_config_kwargs["ranking"] = types.RagRetrievalConfigRanking(
+                    rank_service=types.RagRetrievalConfigRankingRankService(
+                        model_name=ranking_model
+                    )
+                )
+
+        if rag_config_kwargs:
+            store_kwargs["rag_retrieval_config"] = types.RagRetrievalConfig(
+                **rag_config_kwargs
+            )
+
+        vertex_store = types.VertexRagStore(**store_kwargs)
+        tool = types.Tool(retrieval=types.Retrieval(vertex_rag_store=vertex_store))
+        return tool, None
+
+    if source == "vertex_ai_search":
+        datastore = config.get("datastore")
+        engine = config.get("engine")
+        if not datastore and not engine:
+            raise ValueError(
+                "Vertex RAG (vertex_ai_search) 需要配置 VERTEX_RAG_DATASTORE 或 VERTEX_RAG_ENGINE"
+            )
+
+        search_kwargs: Dict[str, Any] = {}
+        if datastore:
+            search_kwargs["datastore"] = datastore
+        if engine:
+            search_kwargs["engine"] = engine
+        if config.get("filter"):
+            search_kwargs["filter"] = config["filter"]
+        if config.get("max_results") is not None:
+            search_kwargs["max_results"] = config["max_results"]
+
+        vertex_search = types.VertexAISearch(**search_kwargs)
+        tool = types.Tool(
+            retrieval=types.Retrieval(vertex_ai_search=vertex_search)
+        )
+        return tool, None
+
+    if source == "google_search_retrieval":
+        tool = types.Tool(
+            google_search_retrieval=types.GoogleSearchRetrieval()
+        )
+        return tool, None
+
+    raise ValueError(f"Vertex RAG source 未知: {source}")
+
 
 
 def is_response_valid(response):

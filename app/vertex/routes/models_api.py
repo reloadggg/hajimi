@@ -260,6 +260,8 @@ async def list_models(fastapi_request: Request, api_key: str = Depends(get_api_k
             "gemini-2.0"
         ):  # Suffix rules based on original_model_id
             standard_suffixes = ["-search", "-encrypt", "-encrypt-full", "-auto"]
+            if settings.vertex_rag.get("enabled"):
+                standard_suffixes.append("-rag")
             for suffix in standard_suffixes:
                 # Suffix is applied to the original model ID part (without EXPRESS prefix)
                 suffixed_model_part = f"{base_model_without_prefix}{suffix}"

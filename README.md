@@ -165,6 +165,27 @@
 - `ENABLE_VERTEX_EXPRESS` - 是否启用Vertex Express模式，默认为false
 - `VERTEX_EXPRESS_API_KEY` - Vertex Express API密钥
 
+### RAG 配置
+
+#### Gemini API RAG
+- `ENABLE_GEMINI_RAG` - 是否启用 AI Studio RAG 功能（默认 false），启用后可使用 `-rag` 模型后缀
+- `GEMINI_RAG_SOURCE` - 数据源类型，支持 `vertex_rag_store`（默认）、`vertex_ai_search`、`google_search_retrieval`
+- `GEMINI_RAG_CORPUS` - `vertex_rag_store` 模式必填，填写 ragCorpora 资源名
+- `GEMINI_RAG_FILE_IDS` - 可选，逗号分隔的 ragFileId 列表
+- `GEMINI_RAG_TOP_K` / `GEMINI_RAG_SIMILARITY_TOP_K` / `GEMINI_RAG_VECTOR_DISTANCE_THRESHOLD` - 可选，控制检索数量与距离阈值
+- `GEMINI_RAG_RANKING_MODE` / `GEMINI_RAG_RANKING_MODEL` - 可选，配置 rerank 模式（`llm` 或 `rank_service`）与模型
+- `GEMINI_RAG_DATASTORE` / `GEMINI_RAG_ENGINE` - `vertex_ai_search` 模式至少指定其一
+- `GEMINI_RAG_FILTER` / `GEMINI_RAG_MAX_RESULTS` - 可选，Vertex AI Search 过滤条件与最大返回数
+
+#### Vertex RAG
+- `ENABLE_VERTEX_RAG` - 是否在 Vertex 端开启 RAG 支持，启用后 `/vertex` 接口同样支持 `-rag` 模型
+- `VERTEX_RAG_SOURCE` - 与 Gemini 设置一致，默认为 `vertex_rag_store`
+- `VERTEX_RAG_CORPUS` / `VERTEX_RAG_FILE_IDS` - Vertex RAG Store 所需配置
+- `VERTEX_RAG_TOP_K` / `VERTEX_RAG_SIMILARITY_TOP_K` / `VERTEX_RAG_VECTOR_DISTANCE_THRESHOLD` - 可选，控制检索与过滤策略
+- `VERTEX_RAG_RANKING_MODE` / `VERTEX_RAG_RANKING_MODEL` - 可选，配置 Vertex 侧 rerank 模式与模型
+- `VERTEX_RAG_DATASTORE` / `VERTEX_RAG_ENGINE` / `VERTEX_RAG_FILTER` / `VERTEX_RAG_MAX_RESULTS` - 当使用 Vertex AI Search 作为数据源时的相关参数
+
+
 ### 联网搜索配置
 
 - `SEARCH_MODE` - 是否启用联网搜索模式，默认为false
