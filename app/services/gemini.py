@@ -2,7 +2,7 @@ import json
 import os
 from app.models.schemas import ChatCompletionRequest
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any, List, Union, Tuple
 import httpx
 import secrets
 import string
@@ -154,6 +154,78 @@ class GeminiClient:
     def __init__(self, api_key: str):
         self.api_key = api_key
 
+
+    def _build_rag_payload(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        config = getattr(settings, "gemini_rag", {})
+        if not config.get("enabled"):
+            raise ValueError("Gemini RAG 未启用或未配置")
+
+        source = (config.get("source") or "vertex_rag_store").lower()
+        tool: Dict[str, Any] = {}
+        tool_config: Dict[str, Any] = {}
+
+        if source == "vertex_rag_store":
+            corpus = config.get("corpus")
+            if not corpus:
+                raise ValueError("Gemini RAG 需要设置 GEMINI_RAG_CORPUS")
+
+            vertex_store: Dict[str, Any] = {}
+            resource: Dict[str, Any] = {"rag_corpus": corpus}
+            if config.get("file_ids"):
+                resource["rag_file_ids"] = config["file_ids"]
+            vertex_store["rag_resources"] = [resource]
+
+            if config.get("similarity_top_k") is not None:
+                vertex_store["similarity_top_k"] = config["similarity_top_k"]
+
+            if config.get("vector_distance_threshold") is not None:
+                vertex_store["vector_distance_threshold"] = config["vector_distance_threshold"]
+
+            rag_config: Dict[str, Any] = {}
+            if config.get("top_k") is not None:
+                rag_config["top_k"] = config["top_k"]
+
+            ranking_mode = (config.get("ranking_mode") or "").lower()
+            ranking_model = config.get("ranking_model")
+            if ranking_mode and ranking_model:
+                if ranking_mode == "llm":
+                    rag_config["ranking"] = {"llm_ranker": {"model_name": ranking_model}}
+                elif ranking_mode == "rank_service":
+                    rag_config["ranking"] = {"rank_service": {"model_name": ranking_model}}
+
+            if rag_config:
+                vertex_store["rag_retrieval_config"] = rag_config
+
+            tool = {"retrieval": {"vertex_rag_store": vertex_store}}
+
+        elif source == "vertex_ai_search":
+            datastore = config.get("datastore")
+            engine = config.get("engine")
+            if not datastore and not engine:
+                raise ValueError(
+                    "Gemini RAG Vertex AI Search 模式需要 GEMINI_RAG_DATASTORE 或 GEMINI_RAG_ENGINE"
+                )
+
+            search_spec: Dict[str, Any] = {}
+            if datastore:
+                search_spec["datastore"] = datastore
+            if engine:
+                search_spec["engine"] = engine
+            if config.get("filter"):
+                search_spec["filter"] = config["filter"]
+            if config.get("max_results") is not None:
+                search_spec["max_results"] = config["max_results"]
+
+            tool = {"retrieval": {"vertex_ai_search": search_spec}}
+
+        elif source == "google_search_retrieval":
+            tool = {"google_search_retrieval": {}}
+
+        else:
+            raise ValueError(f"Gemini RAG source 未知: {source}")
+
+        return tool, tool_config
+
     # 请求参数处理
     def _convert_request_data(
         self, request, contents, safety_settings, system_instruction
@@ -190,6 +262,30 @@ class GeminiClient:
 
             data.setdefault("tools", []).append({"google_search": {}})
             model = request.model.removesuffix("-search")
+
+        if request.model.endswith("-rag"):
+            try:
+                rag_tool, rag_tool_config = self._build_rag_payload()
+            except ValueError as exc:
+                log(
+                    "ERROR",
+                    f"RAG 配置错误: {exc}",
+                    extra={"key": self.api_key[:8], "model": request.model},
+                )
+                raise
+
+            if rag_tool:
+                data.setdefault("tools", []).append(rag_tool)
+            if rag_tool_config:
+                existing_tool_config = data.get("tool_config")
+                if isinstance(existing_tool_config, dict):
+                    merged = existing_tool_config.copy()
+                    merged.update(rag_tool_config)
+                    data["tool_config"] = merged
+                else:
+                    data["tool_config"] = rag_tool_config
+            model = model.removesuffix("-rag")
+
 
         return api_version, model, data
 
@@ -290,8 +386,14 @@ class GeminiClient:
                 tool_config = {"function_calling_config": config}
 
         # 3. 添加 tool_config 到 data
-        if tool_config and function_declarations:
-            data["tool_config"] = tool_config
+        if tool_config:
+            existing_tool_config = data.get("tool_config")
+            if isinstance(existing_tool_config, dict):
+                merged_tool_config = existing_tool_config.copy()
+                merged_tool_config.update(tool_config)
+                data["tool_config"] = merged_tool_config
+            else:
+                data["tool_config"] = tool_config
 
         if system_instruction:
             data["system_instruction"] = system_instruction
@@ -558,6 +660,8 @@ class GeminiClient:
                     and settings.search["search_mode"]
                 ):
                     models.append(model["name"] + "-search")
+                if settings.gemini_rag.get("enabled"):
+                    models.append(model["name"] + "-rag")
             models.extend(GeminiClient.EXTRA_MODELS)
 
             return models

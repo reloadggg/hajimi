@@ -3,6 +3,53 @@ import pathlib
 import logging
 import asyncio
 
+
+
+def _get_env_str(name: str, default: str = "") -> str:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().strip('"')
+
+
+def _get_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().strip('"').lower() in {"true", "1", "yes"}
+
+
+def _get_optional_int(name: str):
+    raw = os.environ.get(name)
+    if raw is None:
+        return None
+    cleaned = raw.strip().strip('"')
+    if not cleaned:
+        return None
+    try:
+        return int(cleaned)
+    except ValueError:
+        return None
+
+
+def _get_optional_float(name: str):
+    raw = os.environ.get(name)
+    if raw is None:
+        return None
+    cleaned = raw.strip().strip('"')
+    if not cleaned:
+        return None
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def _get_str_list(name: str):
+    raw = os.environ.get(name, "")
+    if raw is None:
+        return []
+    return [item.strip() for item in raw.split(',') if item.strip()]
 # ---------- 以下是基础配置信息 ----------
 
 # 调用本项目时使用的密码
@@ -73,6 +120,39 @@ search = {
     "search_prompt": os.environ.get(
         "SEARCH_PROMPT", "（使用搜索工具联网搜索，需要在content中结合搜索内容）"
     ).strip('"'),
+}
+
+# RAG 配置
+gemini_rag = {
+    "enabled": _get_bool("ENABLE_GEMINI_RAG"),
+    "source": _get_env_str("GEMINI_RAG_SOURCE", "vertex_rag_store"),
+    "corpus": _get_env_str("GEMINI_RAG_CORPUS"),
+    "file_ids": _get_str_list("GEMINI_RAG_FILE_IDS"),
+    "datastore": _get_env_str("GEMINI_RAG_DATASTORE"),
+    "engine": _get_env_str("GEMINI_RAG_ENGINE"),
+    "filter": _get_env_str("GEMINI_RAG_FILTER"),
+    "top_k": _get_optional_int("GEMINI_RAG_TOP_K"),
+    "similarity_top_k": _get_optional_int("GEMINI_RAG_SIMILARITY_TOP_K"),
+    "max_results": _get_optional_int("GEMINI_RAG_MAX_RESULTS"),
+    "vector_distance_threshold": _get_optional_float("GEMINI_RAG_VECTOR_DISTANCE_THRESHOLD"),
+    "ranking_mode": _get_env_str("GEMINI_RAG_RANKING_MODE"),
+    "ranking_model": _get_env_str("GEMINI_RAG_RANKING_MODEL"),
+}
+
+vertex_rag = {
+    "enabled": _get_bool("ENABLE_VERTEX_RAG"),
+    "source": _get_env_str("VERTEX_RAG_SOURCE", "vertex_rag_store"),
+    "corpus": _get_env_str("VERTEX_RAG_CORPUS"),
+    "file_ids": _get_str_list("VERTEX_RAG_FILE_IDS"),
+    "datastore": _get_env_str("VERTEX_RAG_DATASTORE"),
+    "engine": _get_env_str("VERTEX_RAG_ENGINE"),
+    "filter": _get_env_str("VERTEX_RAG_FILTER"),
+    "top_k": _get_optional_int("VERTEX_RAG_TOP_K"),
+    "similarity_top_k": _get_optional_int("VERTEX_RAG_SIMILARITY_TOP_K"),
+    "max_results": _get_optional_int("VERTEX_RAG_MAX_RESULTS"),
+    "vector_distance_threshold": _get_optional_float("VERTEX_RAG_VECTOR_DISTANCE_THRESHOLD"),
+    "ranking_mode": _get_env_str("VERTEX_RAG_RANKING_MODE"),
+    "ranking_model": _get_env_str("VERTEX_RAG_RANKING_MODEL"),
 }
 
 # 随机字符串

@@ -28,6 +28,7 @@ from app.vertex.api_helpers import (
     create_generation_config,
     create_openai_error_response,
     execute_gemini_call,
+    build_vertex_rag_tool,
 )
 
 router = APIRouter()
@@ -72,6 +73,7 @@ async def chat_completions(
                 is_openai_direct_model = True
         is_auto_model = request.model.endswith("-auto")
         is_grounded_search = request.model.endswith("-search")
+        is_rag_model = request.model.endswith("-rag")
         is_encrypted_model = request.model.endswith("-encrypt")
         is_encrypted_full_model = request.model.endswith("-encrypt-full")
         is_nothinking_model = request.model.endswith("-nothinking")
@@ -106,6 +108,8 @@ async def chat_completions(
             base_model_name = base_model_name[: -len("-auto")]
         elif is_grounded_search:
             base_model_name = base_model_name[: -len("-search")]
+        elif is_rag_model:
+            base_model_name = base_model_name[: -len("-rag")]
         elif is_encrypted_full_model:
             base_model_name = base_model_name[
                 : -len("-encrypt-full")
@@ -146,6 +150,50 @@ async def chat_completions(
             )
 
         generation_config = create_generation_config(request)
+
+        if is_rag_model:
+            if not settings.vertex_rag.get("enabled"):
+                error_msg = "Vertex RAG 功能未启用"
+                vertex_log("error", error_msg)
+                return JSONResponse(
+                    status_code=400,
+                    content=create_openai_error_response(
+                        400, error_msg, "invalid_request_error"
+                    ),
+                )
+            try:
+                rag_tool, rag_tool_config = build_vertex_rag_tool()
+            except ValueError as exc:
+                error_msg = str(exc)
+                vertex_log("error", f"RAG 配置错误: {error_msg}")
+                return JSONResponse(
+                    status_code=400,
+                    content=create_openai_error_response(
+                        400, error_msg, "invalid_request_error"
+                    ),
+                )
+            if rag_tool is None:
+                error_msg = "Vertex RAG 未返回可用工具"
+                vertex_log("error", error_msg)
+                return JSONResponse(
+                    status_code=400,
+                    content=create_openai_error_response(
+                        400, error_msg, "invalid_request_error"
+                    ),
+                )
+            existing_tools = generation_config.get("tools")
+            if existing_tools:
+                existing_tools.append(rag_tool)
+            else:
+                generation_config["tools"] = [rag_tool]
+            if rag_tool_config:
+                existing_tool_config = generation_config.get("tool_config")
+                if isinstance(existing_tool_config, dict):
+                    merged_tool_config = existing_tool_config.copy()
+                    merged_tool_config.update(rag_tool_config)
+                    generation_config["tool_config"] = merged_tool_config
+                else:
+                    generation_config["tool_config"] = rag_tool_config
 
         client_to_use = None
 
