@@ -139,6 +139,16 @@ gemini_rag = {
     "ranking_model": _get_env_str("GEMINI_RAG_RANKING_MODEL"),
 }
 
+embedding = {
+    "default_model": _get_env_str("EMBEDDING_DEFAULT_MODEL", "text-embedding-004"),
+}
+
+vertex_embedding = {
+    "default_model": _get_env_str(
+        "VERTEX_EMBEDDING_DEFAULT_MODEL", "text-embedding-004"
+    ),
+}
+
 vertex_rag = {
     "enabled": _get_bool("ENABLE_VERTEX_RAG"),
     "source": _get_env_str("VERTEX_RAG_SOURCE", "vertex_rag_store"),

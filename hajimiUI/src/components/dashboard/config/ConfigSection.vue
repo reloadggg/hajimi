@@ -2,10 +2,16 @@
 import { ref } from 'vue'
 import BasicConfig from './BasicConfig.vue'
 import FeaturesConfig from './FeaturesConfig.vue'
+import GeminiRagConfig from './GeminiRagConfig.vue'
+import EmbeddingConfig from './EmbeddingConfig.vue'
+import VertexEmbeddingConfig from './VertexEmbeddingConfig.vue'
 import VertexConfig from './VertexConfig.vue'
 
 const basicConfigRef = ref(null)
 const featuresConfigRef = ref(null)
+const geminiRagConfigRef = ref(null)
+const embeddingConfigRef = ref(null)
+const vertexEmbeddingConfigRef = ref(null)
 const managementPassword = ref('')
 const saveMessage = ref('')
 const messageType = ref('') // 'success' or 'error'
@@ -39,6 +45,30 @@ async function handleSaveAllConfigs() {
     }
   }
 
+  if (geminiRagConfigRef.value) {
+    const result = await geminiRagConfigRef.value.saveComponentConfigs(managementPassword.value)
+    results.push(result)
+    if (!result.success) {
+      allSucceeded = false
+    }
+  }
+
+  if (embeddingConfigRef.value) {
+    const result = await embeddingConfigRef.value.saveComponentConfigs(managementPassword.value)
+    results.push(result)
+    if (!result.success) {
+      allSucceeded = false
+    }
+  }
+
+  if (vertexEmbeddingConfigRef.value) {
+    const result = await vertexEmbeddingConfigRef.value.saveComponentConfigs(managementPassword.value)
+    results.push(result)
+    if (!result.success) {
+      allSucceeded = false
+    }
+  }
+
   const messages = results.map(r => r.message).filter(m => m).join('\n');
   saveMessage.value = messages || (allSucceeded ? '所有配置已成功保存。' : '部分配置保存失败。');
   messageType.value = allSucceeded ? 'success' : 'error';
@@ -52,7 +82,10 @@ async function handleSaveAllConfigs() {
   <div class="config-section">
     <BasicConfig ref="basicConfigRef" />
     <FeaturesConfig ref="featuresConfigRef" />
-    
+    <GeminiRagConfig ref="geminiRagConfigRef" />
+    <EmbeddingConfig ref="embeddingConfigRef" />
+    <VertexEmbeddingConfig ref="vertexEmbeddingConfigRef" />
+
     <div class="shared-save-area">
       <div class="password-input-group">
         <input 

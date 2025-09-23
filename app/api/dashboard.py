@@ -216,6 +216,10 @@ async def get_dashboard_data():
         "max_empty_responses": settings.MAX_EMPTY_RESPONSES,
         # 添加API密钥空回时是否替换文本信息配置
         "show_api_error_message": settings.SHOW_API_ERROR_MESSAGE,
+        "embedding_default_model": settings.embedding.get("default_model", ""),
+        "vertex_embedding_default_model": getattr(
+            settings, "vertex_embedding", {}
+        ).get("default_model", ""),
     }
 
 
@@ -397,6 +401,30 @@ async def update_config(config_data: dict):
                 log("info", f"随机字符串长度已更新为：{value}")
             except ValueError as e:
                 raise HTTPException(status_code=422, detail=f"参数类型错误：{str(e)}")
+
+        elif config_key == "embedding_default_model":
+            if not isinstance(config_value, str):
+                raise HTTPException(status_code=422, detail="参数类型错误：应为字符串")
+
+            cleaned = config_value.strip()
+            if not cleaned:
+                raise HTTPException(status_code=422, detail="Embedding 默认模型不能为空")
+
+            settings.embedding["default_model"] = cleaned
+            log("info", f"Embedding 默认模型已更新为：{cleaned}")
+
+        elif config_key == "vertex_embedding_default_model":
+            if not isinstance(config_value, str):
+                raise HTTPException(status_code=422, detail="参数类型错误：应为字符串")
+
+            cleaned = config_value.strip()
+            if not cleaned:
+                raise HTTPException(status_code=422, detail="Vertex Embedding 默认模型不能为空")
+
+            if not hasattr(settings, "vertex_embedding"):
+                settings.vertex_embedding = {}
+            settings.vertex_embedding["default_model"] = cleaned
+            log("info", f"Vertex Embedding 默认模型已更新为：{cleaned}")
 
         elif config_key == "search_mode":
             if not isinstance(config_value, bool):
