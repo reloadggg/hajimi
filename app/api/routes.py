@@ -462,7 +462,18 @@ async def create_embedding(
 
     client = EmbeddingClient(api_key)
     try:
-        return await client.create_embeddings(request)
+        embedding_model = (request.model or "").strip()
+        if not embedding_model:
+            embedding_model = settings.embedding.get("default_model", "")
+
+        if not embedding_model:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Embedding model 未配置",
+            )
+
+        payload = EmbeddingRequest(input=request.input, model=embedding_model)
+        return await client.create_embeddings(payload)
     except Exception as e:
         log("ERROR", f"An unexpected error occurred: {e}")
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
@@ -477,13 +488,22 @@ async def vector_query(
     log("INFO", f"Received vector query request with headers: {request.headers}")
     body = await request.json()
     search_text = body.get("searchText")
-    model = body.get("model")
+    model = (body.get("model") or "").strip()
+
+    if not model:
+        model = settings.embedding.get("default_model", "")
 
     assert key_manager is not None
     api_key = await key_manager.get_available_key()
 
-    if not all([search_text, model, api_key]):
-        raise HTTPException(status_code=401, detail="Unauthorized: Missing required parameters or no available API keys")
+    if not search_text:
+        raise HTTPException(status_code=400, detail="Missing required parameter: searchText")
+
+    if not model:
+        raise HTTPException(status_code=400, detail="Embedding model 未配置")
+
+    if not api_key:
+        raise HTTPException(status_code=401, detail="Unauthorized: No available API keys")
 
     client = EmbeddingClient(api_key)
     embedding_request = EmbeddingRequest(input=search_text, model=model)
@@ -515,13 +535,22 @@ async def vector_insert(
     log("INFO", f"Received vector insert request with headers: {request.headers}")
     body = await request.json()
     items = body.get("items", [])
-    model = body.get("model")
+    model = (body.get("model") or "").strip()
+
+    if not model:
+        model = settings.embedding.get("default_model", "")
 
     assert key_manager is not None
     api_key = await key_manager.get_available_key()
 
-    if not all([items, model, api_key]):
-        raise HTTPException(status_code=401, detail="Unauthorized: Missing required parameters or no available API keys")
+    if not items:
+        raise HTTPException(status_code=400, detail="Missing required parameter: items")
+
+    if not model:
+        raise HTTPException(status_code=400, detail="Embedding model 未配置")
+
+    if not api_key:
+        raise HTTPException(status_code=401, detail="Unauthorized: No available API keys")
 
     texts = [item.get("text") for item in items]
     client = EmbeddingClient(api_key)
