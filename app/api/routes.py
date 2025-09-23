@@ -464,7 +464,11 @@ async def create_embedding(
     try:
         embedding_model = (request.model or "").strip()
         if not embedding_model:
-            embedding_model = settings.embedding.get("default_model", "")
+            # If Vertex is enabled and has its own default, prefer it
+            if getattr(settings, "ENABLE_VERTEX", False):
+                embedding_model = getattr(settings, "vertex_embedding", {}).get("default_model", "")
+            if not embedding_model:
+                embedding_model = settings.embedding.get("default_model", "")
 
         if not embedding_model:
             raise HTTPException(

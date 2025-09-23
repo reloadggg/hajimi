@@ -16,7 +16,6 @@ from app.config import settings
 # Routers
 from app.vertex.routes import models_api
 from app.vertex.routes import chat_api
-from app.vertex.routes import embedding_api
 
 app = FastAPI(title="OpenAI to Gemini Adapter")
 
@@ -34,7 +33,6 @@ app.state.credential_manager = credential_manager  # Store manager on app state
 # Include API routers
 app.include_router(models_api.router)
 app.include_router(chat_api.router)
-app.include_router(embedding_api.router)
 
 # Create router
 vertex_router = APIRouter(prefix="/vertex")
