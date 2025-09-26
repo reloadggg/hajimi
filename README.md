@@ -164,6 +164,8 @@
 - `GOOGLE_CREDENTIALS_JSON` - Google凭证JSON
 - `ENABLE_VERTEX_EXPRESS` - 是否启用Vertex Express模式，默认为false
 - `VERTEX_EXPRESS_API_KEY` - Vertex Express API密钥
+- `VERTEX_ADDITIONAL_EMBEDDING_MODELS` - 额外暴露的 Vertex 嵌入模型列表，逗号分隔；留空时默认包含 `text-embedding-004`
+- `VERTEX_ADDITIONAL_RANK_MODELS` - 额外暴露的 Vertex 排序模型列表，逗号分隔；留空时默认包含 `text-rerank-002` 和 `multimodal-rerank-001`
 
 ### RAG 配置
 

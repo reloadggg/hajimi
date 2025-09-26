@@ -15,6 +15,9 @@
 ## 2. 在hajimi中使用
 - 参照huggingface教程，在hajimi中新建环境变量`ENABLE_VERTEX`，并将value设置为true
 - 在hajimi中新建变量`GOOGLE_CREDENTIALS_JSON`，将value值设置为你刚刚下载的json的内容
+- 如需在`/v1/models`返回中额外暴露嵌入或排序模型，可设置：
+  - `VERTEX_ADDITIONAL_EMBEDDING_MODELS`：逗号分隔的 Vertex 嵌入模型列表，留空则默认包含 `text-embedding-004`
+  - `VERTEX_ADDITIONAL_RANK_MODELS`：逗号分隔的 Vertex 排序模型列表，留空则默认包含 `text-rerank-002` 与 `multimodal-rerank-001`
 - 等待项目重新部署，看到如图所示界面，即为正常启用vertex模式![screate](./img/vertex/vertex.png)
 
 ## 3. 故障排除

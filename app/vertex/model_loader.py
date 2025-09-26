@@ -12,6 +12,21 @@ _model_cache: Optional[Dict[str, List[str]]] = None
 _cache_lock = asyncio.Lock()
 
 
+def get_additional_vertex_models() -> Dict[str, List[str]]:
+    """Return configured non-generative Vertex models (e.g., embeddings, ranking)."""
+    base_config = getattr(settings, "vertex_additional_models", {}) or {}
+    embedding_models = [
+        model.strip() for model in base_config.get("embedding", []) if model.strip()
+    ]
+    ranking_models = [
+        model.strip() for model in base_config.get("ranking", []) if model.strip()
+    ]
+    return {
+        "embedding": embedding_models,
+        "ranking": ranking_models,
+    }
+
+
 async def fetch_and_parse_models_config() -> Optional[Dict[str, List[str]]]:
     """
     Fetches the model configuration JSON from the URL specified in app_config.

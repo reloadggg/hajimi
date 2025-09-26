@@ -165,6 +165,28 @@ vertex_rag = {
     "ranking_model": _get_env_str("VERTEX_RAG_RANKING_MODEL"),
 }
 
+vertex_additional_models = {
+    "embedding": _get_str_list("VERTEX_ADDITIONAL_EMBEDDING_MODELS"),
+    "ranking": _get_str_list("VERTEX_ADDITIONAL_RANK_MODELS"),
+}
+
+if not vertex_additional_models["embedding"]:
+    vertex_additional_models["embedding"] = ["text-embedding-004"]
+else:
+    vertex_additional_models["embedding"] = list(
+        dict.fromkeys(vertex_additional_models["embedding"])
+    )
+
+if not vertex_additional_models["ranking"]:
+    vertex_additional_models["ranking"] = [
+        "text-rerank-002",
+        "multimodal-rerank-001",
+    ]
+else:
+    vertex_additional_models["ranking"] = list(
+        dict.fromkeys(vertex_additional_models["ranking"])
+    )
+
 # 随机字符串
 RANDOM_STRING = os.environ.get("RANDOM_STRING", "true").lower() in ["true", "1", "yes"]
 RANDOM_STRING_LENGTH = int(os.environ.get("RANDOM_STRING_LENGTH", "5"))
@@ -266,19 +288,7 @@ NONSTREAM_KEEPALIVE_ENABLED = os.environ.get(
 NONSTREAM_KEEPALIVE_INTERVAL = float(
     os.environ.get("NONSTREAM_KEEPALIVE_INTERVAL", "5.0")
 )
-    "source": _get_env_str("VERTEX_RAG_SOURCE", "vertex_rag_store"),
-    "corpus": _get_env_str("VERTEX_RAG_CORPUS"),
-    "file_ids": _get_str_list("VERTEX_RAG_FILE_IDS"),
-    "datastore": _get_env_str("VERTEX_RAG_DATASTORE"),
-    "engine": _get_env_str("VERTEX_RAG_ENGINE"),
-    "filter": _get_env_str("VERTEX_RAG_FILTER"),
-    "top_k": _get_optional_int("VERTEX_RAG_TOP_K"),
-    "similarity_top_k": _get_optional_int("VERTEX_RAG_SIMILARITY_TOP_K"),
-    "max_results": _get_optional_int("VERTEX_RAG_MAX_RESULTS"),
-    "vector_distance_threshold": _get_optional_float("VERTEX_RAG_VECTOR_DISTANCE_THRESHOLD"),
-    "ranking_mode": _get_env_str("VERTEX_RAG_RANKING_MODE"),
-    "ranking_model": _get_env_str("VERTEX_RAG_RANKING_MODEL"),
-}
+
 
 # 随机字符串
 RANDOM_STRING = os.environ.get("RANDOM_STRING", "true").lower() in ["true", "1", "yes"]

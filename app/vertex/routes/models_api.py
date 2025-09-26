@@ -6,6 +6,7 @@ from app.vertex.auth import get_api_key, validate_api_key
 from app.vertex.model_loader import (
     get_vertex_models,
     get_vertex_express_models,
+    get_additional_vertex_models,
     refresh_models_config_cache,
 )
 import app.vertex.config as app_config
@@ -176,6 +177,9 @@ async def list_models(fastapi_request: Request, api_key: str = Depends(get_api_k
 
     raw_vertex_models = await get_vertex_models()
     raw_express_models = await get_vertex_express_models()
+    additional_models = get_additional_vertex_models()
+    embedding_models = additional_models.get("embedding", [])
+    ranking_models = additional_models.get("ranking", [])
 
     candidate_model_ids = set()
 
@@ -222,6 +226,8 @@ async def list_models(fastapi_request: Request, api_key: str = Depends(get_api_k
                 f"处理EXPRESS模型: {original_model_id}, 基础名称: {base_model_without_prefix}",
             )
 
+        is_gemini_family = base_model_without_prefix.startswith("gemini-")
+
         # 只有非EXPRESS模型才考虑添加PAY_PREFIX
         if (
             not is_express_model
@@ -256,7 +262,7 @@ async def list_models(fastapi_request: Request, api_key: str = Depends(get_api_k
         )
 
         # Conditionally add common variations (standard suffixes)
-        if not base_model_without_prefix.startswith(
+        if is_gemini_family and not base_model_without_prefix.startswith(
             "gemini-2.0"
         ):  # Suffix rules based on original_model_id
             standard_suffixes = ["-search", "-encrypt", "-encrypt-full", "-auto"]
@@ -406,6 +412,44 @@ async def list_models(fastapi_request: Request, api_key: str = Depends(get_api_k
                             "parent": None,
                         }
                     )
+
+    def append_special_model(model_id: str, category: str, extra_metadata: Dict[str, Any]) -> None:
+        normalized = model_id.strip()
+        if not normalized:
+            return
+        if any(entry["id"] == normalized for entry in dynamic_models_data):
+            return
+        entry = {
+            "id": normalized,
+            "object": "model",
+            "created": current_time,
+            "owned_by": "google-embedding" if category == "embedding" else "google-ranking",
+            "permission": [],
+            "root": normalized,
+            "parent": None,
+            "metadata": {"category": category, **extra_metadata},
+        }
+        dynamic_models_data.append(entry)
+
+    for embed_model in embedding_models:
+        publisher_model = f"publishers/google/models/{embed_model}"
+        append_special_model(
+            embed_model,
+            "embedding",
+            {"publisher_model": publisher_model},
+        )
+
+    for rank_model in ranking_models:
+        publisher_model = f"publishers/google/models/{rank_model}"
+        metadata: Dict[str, Any] = {"publisher_model": publisher_model}
+        project_id = getattr(app_config, "PROJECT_ID", "") or None
+        location_hint = getattr(app_config, "LOCATION", "") or None
+        if project_id:
+            location_value = location_hint or "global"
+            metadata["suggested_ranking_config"] = (
+                f"projects/{project_id}/locations/{location_value}/rankingConfigs/{rank_model}"
+            )
+        append_special_model(rank_model, "ranking", metadata)
 
     return {
         "object": "list",
