@@ -117,7 +117,7 @@
 
 ### 模型列表接口
 
-- **GET** `/v1/models` - 获取可用模型列表
+- **GET** `/v1/models` - 获取可用模型列表；会根据凭据返回 Vertex 基础/Express 模型，并合并通过 `VERTEX_ADDITIONAL_EMBEDDING_MODELS` 和 `VERTEX_ADDITIONAL_RANK_MODELS` 配置的模型。响应中的嵌入/排序模型附带 `metadata.category`、`metadata.publisher_model`，以及在可用时提供 `metadata.suggested_ranking_config`，便于客户端识别来源。
 - **GET** `/models` - 获取可用模型列表（兼容旧版本）
 
 ### 聊天补全接口
