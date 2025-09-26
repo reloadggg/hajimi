@@ -1,4 +1,5 @@
 import json
+import httpx
 from typing import Optional, Union
 from fastapi import (
     APIRouter,
@@ -12,6 +13,7 @@ from fastapi import (
 )
 from fastapi.responses import StreamingResponse
 from app.services import GeminiClient
+from app.services.external_service import build_service_url, build_headers, get_timeout, is_configured
 from app.utils import protect_from_abuse, generate_cache_key, log
 from app.utils.response import openAI_from_Gemini
 from app.utils.auth import custom_verify_password
@@ -26,8 +28,11 @@ from app.models.schemas import (
     ChatRequestGemini,
     EmbeddingRequest,
     EmbeddingResponse,
+    RerankRequest,
+    RerankResponse,
 )
 from app.services.embedding import EmbeddingClient
+from app.services.rerank import RerankClient
 import app.config.settings as settings
 import asyncio
 from app.vertex.routes import chat_api, models_api
@@ -483,6 +488,65 @@ async def create_embedding(
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
 
 
+@router.post("/v1/rerank", response_model=RerankResponse)
+async def rerank(
+    request: RerankRequest,
+    http_request: Request,
+    _du=Depends(verify_user_agent),
+    _dp=Depends(custom_verify_password),
+):
+    await protect_from_abuse(
+        http_request,
+        settings.MAX_REQUESTS_PER_MINUTE,
+        settings.MAX_REQUESTS_PER_DAY_PER_IP,
+    )
+
+    assert key_manager is not None
+    api_key = await key_manager.get_available_key()
+
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized: No available API keys",
+        )
+
+    rerank_model = (request.model or "").strip()
+    if not rerank_model:
+        rerank_model = settings.embedding.get("default_model", "")
+
+    if not rerank_model:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Rerank model 未配置",
+        )
+
+    if not is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Rerank service 未配置",
+        )
+
+    client = RerankClient(api_key)
+    payload = RerankRequest(
+        model=rerank_model,
+        query=request.query,
+        documents=request.documents,
+        top_n=request.top_n,
+        return_documents=request.return_documents,
+    )
+
+    try:
+        return await client.rerank(payload)
+    except ValueError as exc:
+        log("ERROR", f"Invalid rerank request: {exc}")
+        raise HTTPException(status_code=400, detail=str(exc))
+    except httpx.HTTPError as exc:
+        log("ERROR", f"Rerank service error: {exc}")
+        raise HTTPException(
+            status_code=500, detail="An unexpected error occurred during rerank"
+        )
+
+
 @router.post("/api/vector/query")
 async def vector_query(
     request: Request,
@@ -509,12 +573,34 @@ async def vector_query(
     if not api_key:
         raise HTTPException(status_code=401, detail="Unauthorized: No available API keys")
 
+    vector_service_url = build_service_url("vector_query_path", "/api/vector/query")
+    if vector_service_url:
+        request_payload = dict(body)
+        request_payload["model"] = model
+        try:
+            async with httpx.AsyncClient(timeout=get_timeout()) as client:
+                response = await client.post(
+                    vector_service_url,
+                    headers=build_headers(),
+                    json=request_payload,
+                )
+                response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as exc:
+            log(
+                "ERROR",
+                f"External vector query failed: {exc}",
+                extra={"model": model},
+            )
+            raise HTTPException(
+                status_code=500, detail="Vector query service encountered an error"
+            )
+
     client = EmbeddingClient(api_key)
     embedding_request = EmbeddingRequest(input=search_text, model=model)
-    
+
     try:
         embedding_response = await client.create_embeddings(embedding_request)
-        # Adapt the response to the format expected by the plugin
         adapted_response = {
             "hashes": [],
             "metadata": [],

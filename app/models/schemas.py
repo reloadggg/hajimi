@@ -1,5 +1,5 @@
 from typing import List, Dict, Optional, Union, Literal, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 
 # openAI 请求
@@ -129,3 +129,41 @@ class EmbeddingResponse(BaseModel):
     data: List[EmbeddingData]
     model: str
     usage: Usage
+
+
+class RerankDocument(BaseModel):
+    text: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class RerankRequest(BaseModel):
+    model: Optional[str] = None
+    query: str
+    documents: List[Union[str, RerankDocument, Dict[str, Any]]]
+    top_n: Optional[int] = Field(default=None, alias="top_n")
+    return_documents: bool = True
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class RerankResult(BaseModel):
+    index: int
+    score: float
+    relevance_score: Optional[float] = None
+    document: Optional[Any] = None
+
+    model_config = ConfigDict(extra="allow")
+
+
+class RerankResponse(BaseModel):
+    object: str = "list"
+    model: str
+    data: List[RerankResult] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="allow")
+
+    @model_validator(mode="before")
+    def _coerce_results(cls, values: Dict[str, Any]):
+        if "results" in values and "data" not in values:
+            values["data"] = values.pop("results")
+        return values

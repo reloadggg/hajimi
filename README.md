@@ -135,6 +135,12 @@
 - **GET** `/aistudio/models` - 获取 AI Studio 模型列表
 - **POST** `/aistudio/chat/completions` - AI Studio 聊天补全接口
 
+### 向量与排序接口
+
+- **POST** `/v1/embeddings` - 生成文本或批量输入的嵌入，默认转发到 `EMBEDDING_SERVICE_BASE_URL`
+- **POST** `/api/vector/query` - 为 Vector Query 插件提供检索结果；默认转发到外部向量服务
+- **POST** `/v1/rerank` - 对候选文档进行排序，沿用 OpenAI Rerank 请求格式
+
 ## ⚙️ 配置选项
 
 项目支持多种配置方式，可以通过环境变量进行配置：
@@ -166,6 +172,15 @@
 - `VERTEX_EXPRESS_API_KEY` - Vertex Express API密钥
 - `VERTEX_ADDITIONAL_EMBEDDING_MODELS` - 额外暴露的 Vertex 嵌入模型列表，逗号分隔；留空时默认包含 `text-embedding-004`
 - `VERTEX_ADDITIONAL_RANK_MODELS` - 额外暴露的 Vertex 排序模型列表，逗号分隔；留空时默认包含 `text-rerank-002` 和 `multimodal-rerank-001`
+
+### 嵌入与向量服务配置
+
+- `EMBEDDING_SERVICE_BASE_URL` - 外部服务基础地址，默认为 `https://miku39.tech:7666`
+- `EMBEDDING_SERVICE_EMBEDDINGS_PATH` - 嵌入接口路径（默认 `/v1/embeddings`）
+- `EMBEDDING_SERVICE_VECTOR_QUERY_PATH` - Vector Query 插件接口路径（默认 `/api/vector/query`）
+- `EMBEDDING_SERVICE_RERANK_PATH` - Rerank 接口路径（默认 `/v1/rerank`）
+- `EMBEDDING_SERVICE_API_KEY` - 可选，调用外部服务时附加的 Bearer Token
+- `EMBEDDING_SERVICE_TIMEOUT` - 外部服务请求超时时间（秒），默认 60
 
 ### RAG 配置
 

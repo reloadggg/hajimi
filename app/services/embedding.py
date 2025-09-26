@@ -1,9 +1,10 @@
 import httpx
 import random
 import asyncio
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Dict, Any
 from app.models.schemas import EmbeddingRequest, EmbeddingData, EmbeddingResponse, Usage
 from app.utils.logging import log, vertex_log
+from app.services.external_service import build_service_url, build_headers, get_timeout, is_configured
 import app.config.settings as settings
 
 # Optional Vertex imports
@@ -22,6 +23,63 @@ except Exception:  # ImportError or runtime missing deps
     CredentialManager = None
     parse_multiple_json_credentials = None
 
+
+
+
+def _extract_embedding_values(item: Any) -> Optional[List[float]]:
+    if isinstance(item, dict):
+        for key in ("embedding", "values", "vector"):
+            candidate = item.get(key)
+            if isinstance(candidate, list):
+                return candidate
+        # Some services may return embeddings nested under metadata
+        metadata = item.get("metadata")
+        if isinstance(metadata, dict):
+            for key in ("embedding", "values", "vector"):
+                candidate = metadata.get(key)
+                if isinstance(candidate, list):
+                    return candidate
+        return None
+    if isinstance(item, list):
+        return item
+    return None
+
+
+def _normalize_embedding_response(payload: Dict[str, Any], fallback_model: str) -> EmbeddingResponse:
+    data_items = payload.get("data") or payload.get("embeddings") or []
+    embedding_data: List[EmbeddingData] = []
+
+    for idx, item in enumerate(data_items):
+        vector = _extract_embedding_values(item)
+        if vector is None:
+            continue
+        index_value = idx
+        if isinstance(item, dict):
+            index_value = int(item.get("index", idx))
+        embedding_data.append(EmbeddingData(embedding=vector, index=index_value))
+
+    if not embedding_data:
+        raise ValueError("No embeddings returned from external service")
+
+    usage_payload = payload.get("usage") or {}
+    prompt_tokens = int(usage_payload.get("prompt_tokens", 0))
+    completion_tokens = int(usage_payload.get("completion_tokens", 0))
+    total_tokens = int(usage_payload.get("total_tokens", prompt_tokens + completion_tokens))
+
+    usage = Usage(
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
+    )
+
+    model_name = payload.get("model") or fallback_model
+
+    return EmbeddingResponse(
+        object=payload.get("object", "list"),
+        data=embedding_data,
+        model=model_name,
+        usage=usage,
+    )
 
 def _as_list(input_value: Union[str, List[str]]) -> List[str]:
     if isinstance(input_value, list):
@@ -120,9 +178,39 @@ class EmbeddingClient:
     def __init__(self, api_key: str):
         self.api_key = api_key
 
+    async def _create_external_embeddings(self, request: EmbeddingRequest) -> Optional[EmbeddingResponse]:
+        if not is_configured():
+            return None
+
+        url = build_service_url("embeddings_path", "/v1/embeddings")
+        if not url:
+            return None
+
+        headers = build_headers()
+        payload = request.model_dump(exclude_none=True)
+
+        try:
+            async with httpx.AsyncClient(timeout=get_timeout()) as client:
+                response = await client.post(url, headers=headers, json=payload)
+                response.raise_for_status()
+        except httpx.HTTPError as exc:
+            log(
+                "ERROR",
+                f"External embedding request failed: {exc}",
+                extra={"model": request.model},
+            )
+            raise
+
+        response_json = response.json()
+        return _normalize_embedding_response(response_json, request.model)
+
     async def create_embeddings(self, request: EmbeddingRequest) -> EmbeddingResponse:
         model_name = request.model
         inputs = _as_list(request.input)
+
+        external_response = await self._create_external_embeddings(request)
+        if external_response is not None:
+            return external_response
 
         # Prefer Vertex path when enabled
         if getattr(settings, "ENABLE_VERTEX_EXPRESS", False) or getattr(settings, "ENABLE_VERTEX", False):

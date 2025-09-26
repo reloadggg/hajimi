@@ -143,6 +143,23 @@ embedding = {
     "default_model": _get_env_str("EMBEDDING_DEFAULT_MODEL", "text-embedding-004"),
 }
 
+embedding_service = {
+    "base_url": _get_env_str(
+        "EMBEDDING_SERVICE_BASE_URL", "https://miku39.tech:7666"
+    ),
+    "embeddings_path": _get_env_str(
+        "EMBEDDING_SERVICE_EMBEDDINGS_PATH", "/v1/embeddings"
+    ),
+    "vector_query_path": _get_env_str(
+        "EMBEDDING_SERVICE_VECTOR_QUERY_PATH", "/api/vector/query"
+    ),
+    "rerank_path": _get_env_str(
+        "EMBEDDING_SERVICE_RERANK_PATH", "/v1/rerank"
+    ),
+    "api_key": _get_env_str("EMBEDDING_SERVICE_API_KEY", ""),
+    "timeout": _get_optional_float("EMBEDDING_SERVICE_TIMEOUT") or 60.0,
+}
+
 vertex_embedding = {
     "default_model": _get_env_str(
         "VERTEX_EMBEDDING_DEFAULT_MODEL", "text-embedding-004"
