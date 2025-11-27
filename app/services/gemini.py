@@ -154,6 +154,28 @@ class GeminiClient:
     def __init__(self, api_key: str):
         self.api_key = api_key
 
+    @staticmethod
+    def _determine_api_version(model: str) -> str:
+        """
+        根据 Google Generative Language API 文档：
+
+        - 面向用户的通用模型（包括 Gemini 3/1.5/1.0 及 RAG/搜索后缀）统一使用 `v1`。
+        - "think" 变体仍使用官方提供的 `v1alpha` 入口。
+        """
+
+        base_model = model or ""
+        if base_model.startswith("models/"):
+            base_model = base_model[len("models/") :]
+
+        for suffix in ("-search", "-rag"):
+            if base_model.endswith(suffix):
+                base_model = base_model[: -len(suffix)]
+
+        if "think" in base_model:
+            return "v1alpha"
+
+        return "v1"
+
 
     def _build_rag_payload(self) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         config = getattr(settings, "gemini_rag", {})
@@ -233,7 +255,7 @@ class GeminiClient:
         model = request.model
         format_type = getattr(request, "format_type", None)
         if format_type and (format_type == "gemini"):
-            api_version = "v1alpha" if "think" in request.model else "v1beta"
+            api_version = self._determine_api_version(request.model)
             if request.payload:
                 # 将 Pydantic 模型转换为字典, 假设 Pydantic V2+
                 data = request.payload.model_dump(exclude_none=True)
@@ -320,7 +342,7 @@ class GeminiClient:
             
         generationConfig = {k: v for k, v in config_params.items() if v is not None}
 
-        api_version = "v1alpha" if "think" in request.model else "v1beta"
+        api_version = self._determine_api_version(request.model)
 
         data = {
             "contents": contents,
@@ -645,33 +667,51 @@ class GeminiClient:
 
     @staticmethod
     async def list_available_models(api_key) -> list:
-        url = "https://generativelanguage.googleapis.com/v1beta/models?key={}".format(
-            api_key
-        )
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url)
-            response.raise_for_status()
-            data = response.json()
-            models = []
-            for model in data.get("models", []):
-                models.append(model["name"])
-                if (
-                    model["name"].startswith("models/gemini-2")
-                    and settings.search["search_mode"]
-                ):
-                    models.append(model["name"] + "-search")
-                if settings.gemini_rag.get("enabled"):
-                    models.append(model["name"] + "-rag")
-            models.extend(GeminiClient.EXTRA_MODELS)
+        async def _fetch(version: str) -> list:
+            url = f"https://generativelanguage.googleapis.com/{version}/models?key={api_key}"
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url)
+                response.raise_for_status()
+                data = response.json()
+                return [model["name"] for model in data.get("models", [])]
 
-            return models
+        collected_models = []
+        seen = set()
+
+        # 首选使用 v1（官方稳定版）；若失败再尝试 v1beta 作为回退。
+        for version in ("v1", "v1beta"):
+            try:
+                for name in await _fetch(version):
+                    if name not in seen:
+                        seen.add(name)
+                        collected_models.append(name)
+                # v1 拉取成功即可退出，避免重复请求
+                if version == "v1" and collected_models:
+                    break
+            except Exception as exc:
+                log(
+                    "warning",
+                    f"获取 {version} 模型列表失败: {exc}",
+                    extra={"api_version": version},
+                )
+
+        models = []
+        for model_name in collected_models:
+            models.append(model_name)
+            if model_name.startswith("models/gemini-") and settings.search["search_mode"]:
+                models.append(model_name + "-search")
+            if settings.gemini_rag.get("enabled"):
+                models.append(model_name + "-rag")
+
+        models.extend(GeminiClient.EXTRA_MODELS)
+        return models
 
     @staticmethod
     async def list_native_models(api_key):
         """
         获取原生Gemini模型列表
         """
-        url = "https://generativelanguage.googleapis.com/v1beta/models?key={}".format(
+        url = "https://generativelanguage.googleapis.com/v1/models?key={}".format(
             api_key
         )
         async with httpx.AsyncClient() as client:
