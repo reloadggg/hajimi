@@ -1,5 +1,8 @@
 # 更新日志
 
+* 文档补充
+   * README 增加了 Gemini 3 系列与 RAG 使用说明，涵盖 AI Studio 与 Vertex 双模式的配置要点
+
 * v0.3.x
    * 新增 Gemini / Vertex RAG 支持，使用 `-rag` 模型后缀自动注入检索工具
    * 新增 RAG 环境变量（ENABLE_GEMINI_RAG、VERTEX_RAG_* 等）便于配置数据源

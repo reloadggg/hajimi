@@ -135,6 +135,12 @@
 - **GET** `/aistudio/models` - 获取 AI Studio 模型列表
 - **POST** `/aistudio/chat/completions` - AI Studio 聊天补全接口
 
+### Gemini 3 / RAG 支持说明
+
+- AI Studio 与 Vertex 模式均已适配 Gemini 3 系列模型（含 Pro/Flash 等），直接在对应接口选择最新模型即可使用。
+- 想要开启联网检索或 RAG，请在模型名称后添加 `-search` 或 `-rag` 后缀，并按下方 RAG 配置章节设置相应环境变量。
+- 若需使用 AI Studio 自带的 RAG 能力，请开启 `ENABLE_GEMINI_RAG` 并提供数据源配置；Vertex 侧开启 `ENABLE_VERTEX_RAG` 后，`/vertex` 接口同样支持 `-rag` 模型。
+
 ## ⚙️ 配置选项
 
 项目支持多种配置方式，可以通过环境变量进行配置：
